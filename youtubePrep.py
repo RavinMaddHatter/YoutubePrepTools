@@ -10,10 +10,15 @@ import uuid
 import sys
 from importlib.machinery import SourceFileLoader
 import requests
+import tkinter as tk
 from tkinter import *
 from tkinter import filedialog
 from os.path import exists
+from tkinter.scrolledtext import ScrolledText
 import json
+from pathlib import Path
+import cutter
+import glob
 confFile="youtubeDescription.json"
 def updateSave():
     data={}
@@ -118,6 +123,7 @@ class markerProcessor:
                 
                 self.markers.append(time+" "+row["Notes"])
     def stringToClipboard(self):
+        print("here")
         pyperclip.copy(BoilerplateInfo+"\n\r".join(self.markers))
     def stringToFile(self,name):
         with open(name, "w+") as text_file:
@@ -132,6 +138,7 @@ if __name__=="__main__":
                                                        ("all files",
                                                         "*.*")))
         try:
+            BoilerplateInfo=st.get("1.0", tk.END)
             mk=markerProcessor(filename)
             mk.stringToClipboard()
             print("markers in clipboard")
@@ -149,26 +156,74 @@ if __name__=="__main__":
             print("Finished")
         except:
             print("failed translation")
+    def cut_clip():
+        video_file = filedialog.askopenfilename(title = "Select a WAV File",
+                                          filetypes = (("video files",
+                                                        "*.mkv*"),
+                                                       ("all files",
+                                                        "*.*")))
+        name = Path(video_file).stem
+        head, tail = os.path.split(video_file)
+        cc=cutter.clipCutter()
+        cc.set_min_clip_dur(1)
+        cc.add_cut_video_to_timeline(video_file)
+        cc.export_xml(os.path.join(head,name+"-cut.xml"))
+        cc._cleanup()
+    def cut_folder():
+        folder = filedialog.askdirectory()
+        
+        cc=cutter.clipCutter()
+        name=os.path.split(folder)[-1]
+        cc.set_min_clip_dur(1)
+        files=glob.glob(os.path.join(folder,"*.mkv"))
+        files.sort(key=os.path.getmtime)
+        for file in files:
+            print(file)
+            cc.add_cut_video_to_timeline(file)
+        print(folder)
+        print(name)
+        print(os.path.join(folder,(name+"-cut.xml")))
+        cc.export_xml(os.path.join(folder,(name+"-cut.xml")))
     window = Tk()
-    window.title('Quick Fixer for youtube prep')
+    window.title('Youtube Video Publishing Tools')
     label_file_explorer = Label(window,
-                            text = "Youtube Processors",
-                            width = 50, height = 2,
-                            fg = "blue")
+                            text = "Video Prep Tools",
+                            width = 20, height = 2)
     csvButton = Button(window,
-                        text = "CSV to markers",
-                        command = findCSV)
+                        text = "Markers to Clipboard",
+                        command = findCSV,
+                        width=20)
     waveButton = Button(window,
                         text = "WAV to Translation",
-                        command = transcribeVid)
+                        command = transcribeVid,
+                        width=20)
+    cut_button = Button(window,
+                        text = "Cut Clip",
+                        command = cut_clip,
+                        width=20)
+    super_cut_button = Button(window,
+                        text = "Cut Folder",
+                        command = cut_folder,
+                        width=20)
     button_exit = Button(window,
                      text = "Exit",
-                     command = exit)
-    label_file_explorer.grid(column = 1, row = 1,columnspan=3)
+                     command = exit,
+                        width=20)
+    lbl_entry = Label(window,
+                            text = "Description Tools",
+                            width = 50, height = 2)
+    st = ScrolledText(window, width=75, height = 5, relief="raised")
+    st.insert(tk.INSERT,BoilerplateInfo)
+    label_file_explorer.grid(column = 1, row = 1, columnspan=3)
   
-    csvButton.grid(column = 1, row = 2,columnspan=3)
+    
   
-    waveButton.grid(column = 1, row = 3, columnspan=3)
+    waveButton.grid(column = 1, row = 2)
+    cut_button.grid(column = 2, row = 2)
+    super_cut_button.grid(column = 3, row = 2)
   
-    button_exit.grid(column = 1,row = 4, columnspan=3)
+    lbl_entry.grid(column = 1,row =3, columnspan=3)
+    st.grid(column = 1,row =4, columnspan=3)
+    csvButton.grid(column = 1, row = 5,columnspan=3)
+    button_exit.grid(column = 1,row = 6, columnspan=3)
         
