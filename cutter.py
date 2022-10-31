@@ -41,6 +41,7 @@ class clipCutter:
         self.current_frame = 0 #tracking in timeline
         self.clips=[]
         self.root_clips=[]
+        self.default_size=True
     def set_multi_chan_thres(self,thresh_list):
         self.silent_thresh_list = thresh_list
     def set_silent_thresh(self,silent_thresh_db):
@@ -51,17 +52,21 @@ class clipCutter:
         self.lead_in=lead_out
     def set_min_clip_dur(self,min_clip_dur):
         self.min_clip_dur=min_clip_dur
+    def min_silent_dur(self,min_silent_dur):
+        self.min_silent_dur=min_silent_dur
     def set_timeline_res(self,width, height):
         self.height = height
         self.width = width
+        self.default_size=False
     def add_cut_video_to_timeline(self,file_name,cut_channel=1):
         self.metadata=ffprobe.FFProbe(file_name)
         self.video_file_name=file_name
         
         self.audio_tracks=len(self.metadata.audio)
         self.fps = self.metadata.video[0].framerate
-        self.width = self.metadata.video[0].width
-        self.height = self.metadata.video[0].height
+        if self.default_size:
+            self.width = self.metadata.video[0].width
+            self.height = self.metadata.video[0].height
         try: 
             [start_clips,stop_clips, total_length] = self._compute_cuts(cut_channel)
             self.durration += sum(stop_clips-start_clips)
@@ -89,9 +94,8 @@ class clipCutter:
                                                                                                   chan,
                                                                                                   self.metadata.audio[chan].channels,
                                                                                                   audio_path)
-            print(cmd)
             startupinfo = None
-            subprocess.Popen(cmd,stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True) ##needs clean up and error handling, but skipping for now.
+            subprocess.Popen(cmd,stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True).wait()  ##needs clean up and error handling, but skipping for now.
             return audio_path
         
     def _compute_cuts(self,channel):
@@ -389,4 +393,4 @@ if __name__ == "__main__":
     test=cc.add_cut_video_to_timeline(video_file)
     cc.export_xml("C:\\Users\\camer\\OneDrive\\Documents\\GitHub\\structuraBranch\\YoutubePrepTools\\text.xml")
     cc._cleanup()
-    #test=cc.computeCuts(file_name)
+
