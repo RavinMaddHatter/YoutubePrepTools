@@ -1,3 +1,7 @@
 {
-  "boilerplate": "\nLink to playlist:\nhttps://www.youtube.com/playlist?list=PL0bqDM9nfA11E4_zktY9NnAv38apJvuaB\n\nLink to get the packs:\nhttps://ravinmaddhatter.com/2022/10/16/skyblock-v2/\n\nLinks to discord:\nhttps://discord.com/invite/M7MHtUab2r\n"
+  "boilerplate": "\nLink to playlist:\nhttps://www.youtube.com/playlist?list=PL0bqDM9nfA11E4_zktY9NnAv38apJvuaB\n\nLink to get the packs:\nhttps://ravinmaddhatter.com/2022/10/16/skyblock-v2/\n\nLinks to discord:\nhttps://discord.com/invite/M7MHtUab2r\n",
+  "in_space": 0.2,
+  "out_space": 0.2,
+  "min_clip": 0.5,
+  "min_silent": 0.2
 }

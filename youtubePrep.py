@@ -27,10 +27,10 @@ confFile="youtubeDescription.json"
 def updateSave(in_space, out_space,min_silent, min_clip):
     data={}
     data["boilerplate"]=BoilerplateInfo
-    data["in_space"]=0.1
-    data["out_space"]=0.1
-    data["min_clip"]=1
-    data["min_silent"]=0.1
+    data["in_space"]=in_space
+    data["out_space"]=out_space
+    data["min_clip"]=min_clip
+    data["min_silent"]=min_silent
     with open(confFile,"w+") as file:
         json.dump(data,file, indent=2)
 if exists(confFile):
@@ -199,18 +199,19 @@ if __name__=="__main__":
             keyboard.press_and_release('f')
             time.sleep(0.05)
             keyboard.press_and_release('f10')
-            time.sleep(0.05)
+            time.sleep(0.1)
     def do_settings(cc):
         levels=[]
         chans=[]
         for i in range(len(sliders)):
-            levels.append(sliders[i].get())
+            levels.append(-sliders[i].get())
             chans.append(slider_chks[i].get()==1)
         cc.set_multi_chan_thres(levels)
         cc.set_lead_in(lead_in.get())
         cc.set_lead_out(lead_out.get())
         cc.set_min_clip_dur(clip_dur.get())
-        cc.min_silent_dur(min_silent_dur.get())
+        cc.set_enabled_tracks(chans)
+        cc.set_min_silent_dur(min_silent_dur_var.get())
     def cut_clip():
         video_file = filedialog.askopenfilename(title = "Select a WAV File",
                                           filetypes = (("video files",
@@ -242,7 +243,7 @@ if __name__=="__main__":
         num_clips.set(len(cc.clips))
         cc._cleanup()
     def save():
-        updateSave(lead_in.get(), lead_out.get(),min_silent_dur.get(), clip_dur.get())
+        updateSave(lead_in.get(), lead_out.get(),min_silent_dur_var.get(), clip_dur.get())
     window = Tk()
     window.title('Youtube Video Publishing Tools')
     label_file_explorer = Label(window,
@@ -310,13 +311,13 @@ if __name__=="__main__":
     clip_dur=DoubleVar()
     clip_dur_ent=Entry(window,textvariable=clip_dur, width=10)
     dur_lb = Label(window,text = "Min Clip Length",width = 15, height = 2)
-    min_silent_dur=DoubleVar()
-    min_silent_dur_ent=Entry(window,textvariable=min_silent_dur, width=10)
+    min_silent_dur_var=DoubleVar()
+    min_silent_dur_ent=Entry(window,textvariable=min_silent_dur_var, width=10)
     silent_lb = Label(window,text = "Min Silent Dur",width = 15, height = 2)
     lead_in.set(data["in_space"])
     lead_out.set(data["out_space"])
     clip_dur.set(data["min_clip"])
-    min_silent_dur.set(data["min_silent"])
+    min_silent_dur_var.set(data["min_silent"])
     row=1
     label_file_explorer.grid(column = 1, row = row, columnspan=audioChans)
     auto_clicker = Label(window,text = "Fix Davinci",width = 15, height = 2)

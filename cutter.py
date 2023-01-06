@@ -11,10 +11,7 @@ import shutil
 from os import path
 import os
 import uuid
-
 import xml.etree.cElementTree as ElementTree
-
-
 
 def rolling_window(a, window):
     shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
@@ -22,37 +19,36 @@ def rolling_window(a, window):
     return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
 class clipCutter:
     def __init__(self):
-        self.silent_thresh=24 #dB
-        self.silent_thresh_list=None
-        self.lead_in=0.05 #seconds
-        self.lead_out=0.05 #seconds
-        self.min_clip_dur=0.5#seconds
-        self.min_silent_dur=0.1#seconds
-        self.video_file_name=None
-        self.metadata=None
-        self.fps=60
-        self.width=1920
-        self.height=1080
-        self.durration=0
-        self.working_folder = tempfile.mkdtemp(prefix="youtubePrep-")
-        print(self.working_folder )
-        self.audio_tracks=0
+        self.silent_thresh_list=[24,24,24,24]# set by function
+        self.enabled_clips=[True, False, False, False] # set by function
+        self.lead_in=0.05 #seconds set by function
+        self.lead_out=0.05 #seconds set by function
+        self.min_clip_dur=0.5#seconds set by function
+        self.min_silent_dur=0.1#seconds set by function
+        self.video_file_name=None # set by function
+        self.metadata=None#set by import
+        self.fps=60#set by import
+        self.width=1920#can be set by importor by function
+        self.height=1080#can be set by import or set by function
+        self.durration=0#set by import
+        self.working_folder = tempfile.mkdtemp(prefix="youtubePrep-")#temp folder so we don't make a mess
+        self.audio_tracks=0#gets set by audio import
         self.tree = ElementTree.Element("xmeml", {"version": "5"})
         self.current_frame = 0 #tracking in timeline
-        self.clips=[]
-        self.root_clips=[]
-        self.default_size=True
+        self.clips=[] # for internal only
+        self.root_clips=[]#for internal only
+        self.default_size=True#locks if you set a resolution manually
     def set_multi_chan_thres(self,thresh_list):
         self.silent_thresh_list = thresh_list
-    def set_silent_thresh(self,silent_thresh_db):
-        self.silent_thresh=silent_thresh
+    def set_enabled_tracks(self,bool_list):
+        self.enabled_clips = bool_list
     def set_lead_in(self,lead_in):
         self.lead_in=lead_in
     def set_lead_out(self,lead_out):
         self.lead_in=lead_out
     def set_min_clip_dur(self,min_clip_dur):
         self.min_clip_dur=min_clip_dur
-    def min_silent_dur(self,min_silent_dur):
+    def set_min_silent_dur(self,min_silent_dur):
         self.min_silent_dur=min_silent_dur
     def set_timeline_res(self,width, height):
         self.height = height
@@ -68,13 +64,16 @@ class clipCutter:
             self.width = self.metadata.video[0].width
             self.height = self.metadata.video[0].height
         try: 
-            [start_clips,stop_clips, total_length] = self._compute_cuts(cut_channel)
+            [start_clips,stop_clips, total_length] = self._cut_audio()
             self.durration += sum(stop_clips-start_clips)
         except:
+            [start_clips,stop_clips, total_length] = self._cut_audio()
+            self.durration += sum(stop_clips-start_clips)
             start_clips=np.array([])
             stop_clips=[]
             total_length=0
             self.durration=0
+            print("error")
         
         head, tail = os.path.split(file_name)
         root_name=path.splitext(tail)[0]
@@ -88,7 +87,8 @@ class clipCutter:
     def _export_audio(self,chan):
         if self.video_file_name is not None:
             # sample test command, 
-            #ffmpeg -i .\ep6c1.mkv -bitexact -map 0:1 -acodec pcm_s16le -ar 22050 -ac 1 audio.wav 
+            #ffmpeg -i .\ep6c1.mkv -bitexact -map 0:1 -acodec pcm_s16le -ar 22050 -ac 1 audio.wav
+            
             audio_path=path.join(self.working_folder,"audio{}_{}.wav".format(uuid.uuid4(),chan))
             cmd = 'ffmpeg -i "{}" -bitexact -map 0:{} -acodec pcm_s16le -ar 22050 -ac {} {}'.format(self.video_file_name,
                                                                                                   chan,
@@ -97,20 +97,34 @@ class clipCutter:
             startupinfo = None
             subprocess.Popen(cmd,stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True).wait()  ##needs clean up and error handling, but skipping for now.
             return audio_path
-        
-    def _compute_cuts(self,channel):
-        samplerate, data = wavfile.read(self._export_audio(channel)) # bring in wave file
-        if len(data.shape)==1:
-            return self._compute_cuts_mono(data,samplerate)
-        else:
-            data=(data[:,0]+data[:,1])/2
-            return self._compute_cuts_mono(data,samplerate)
-    def _compute_cuts_mono(self,data,samplerate):
+    def _cut_audio(self):
+        self.enabled_clips
+        self.silent_thresh_list
+#        self._import_audio_chan()
+        data=None
+        where_loud=None
+        active_thresh=[]
+        for i in range(min(len(self.enabled_clips),len(self.metadata.audio))):
+            if self.enabled_clips[i]:
+                active_thresh.append(-self.silent_thresh_list[i])
+            
+        silent_tresh=max(active_thresh)
+        for i in range(min(len(self.enabled_clips),len(self.metadata.audio))):
+            if self.enabled_clips[i]:
+                samplerate, temp_data = wavfile.read(self._export_audio(i+1))
+                if len(temp_data.shape)>1:
+                    temp_data=(temp_data[:,0]+temp_data[:,1])/2
+                temp_data=temp_data*10**(silent_tresh/10)/10**(-self.silent_thresh_list[i]/10)
+                if data is None:
+                    data=temp_data
+                else:
+                    data=(data*i+temp_data)/i+1
+                    
         totalLength=data.size/samplerate
         # Calculate signal p-p
         max_delta=(int(data.max())-int(data.min()))
         # convert dB to linear
-        threshold=max_delta*(10**(-self.silent_thresh/10))
+        threshold=max_delta*(10**(silent_tresh/10))
         #set up a scanner for 10% of the average of the in vs the out durration 
         scan_interval=(self.lead_in+self.lead_out)/20
         #set window for scanning
@@ -121,8 +135,12 @@ class clipCutter:
         mins=np.nan_to_num(pd.Series(data).rolling(window).min().to_numpy(), nan=0)
         # calculates peak to peak for each window
         max_vs_min = maxes - mins
-        #checks where peak to peak is greater than loud threshold
-        where_loud = np.where(max_vs_min > threshold,True,False)
+        if where_loud is None:
+            #checks where peak to peak is greater than loud threshold
+            where_loud = np.where(max_vs_min > threshold,True,False)
+        else:
+            where_loud_temp = np.where(max_vs_min > threshold,True,False)
+            where_loud = np.logical_or(where_loud_temp,where_loud)
         #Find edges where there is a transition between loud and quite
         edges = where_loud[:-1] != where_loud[1:]
         #find rising edges by checking where the signal was loud and hand just transitioned
@@ -139,6 +157,9 @@ class clipCutter:
             
 ##        elif (index_of_rising_edges.size < index_of_falling_edges.size):
 ##            index_of_rising_edges=np.append([0],index_of_rising_edges)
+        if index_of_rising_edges.size==0:
+            index_of_rising_edges=np.array([0])
+            index_of_falling_edges=np.array([data.size])
         if (index_of_rising_edges[0]<index_of_falling_edges[0]):
             index_of_rising_edges=np.append(index_of_rising_edges,[edges.size])
             index_of_falling_edges=np.append([0],index_of_falling_edges)
@@ -153,18 +174,20 @@ class clipCutter:
         index_of_rising_edges = index_of_rising_edges[quiet_long_enough]
         index_of_falling_edges=index_of_falling_edges[quiet_long_enough[:index_of_falling_edges.size]]
         # calculate loud durrations
-        index_of_falling_edges=np.append(index_of_falling_edges[1:],index_of_falling_edges[0])
-        dur_loud=index_of_falling_edges-index_of_rising_edges
+        if index_of_falling_edges.size>1:
+            index_of_falling_edges=np.append(index_of_falling_edges[1:],index_of_falling_edges[0])
+            dur_loud=index_of_falling_edges-index_of_rising_edges
+            # check if it is loud long enough
+            loud_long_enough = np.where(dur_loud > self.min_clip_dur*samplerate,True,False)
+            #remove clips that are too short
+            index_of_rising_edges = index_of_rising_edges[loud_long_enough]
+            index_of_falling_edges=index_of_falling_edges[loud_long_enough[:index_of_falling_edges.size]]
         
-        
-        # check if it is loud long enough
-        loud_long_enough = np.where(dur_loud > self.min_clip_dur*samplerate,True,False)
-        #remove clips that are too short
-        index_of_rising_edges = index_of_rising_edges[loud_long_enough]
-        index_of_falling_edges=index_of_falling_edges[loud_long_enough[:index_of_falling_edges.size]]
         #calculate remaining clip durations
         rising_times = index_of_rising_edges / samplerate - self.lead_in
         falling_times = index_of_falling_edges / samplerate - self.lead_out
+        print(["video length (S)","number of clips"])
+        print([totalLength,len(rising_times)])
         return [rising_times,falling_times,totalLength]
     def export_xml(self,xml_file_path):
         head, tail = os.path.split(self.video_file_name)
@@ -386,11 +409,11 @@ class clipCutter:
         ElementTree.SubElement(appData, "appmanufacturer").text = "Apple Inc."
         data = ElementTree.SubElement(appData, "data")
         ElementTree.SubElement(data, "qtcodec")
-if __name__ == "__main__":
-    video_file='F:\\Videos\\skyblock but\\EP 6\\ep6c1.mkv'
-    cc=clipCutter()
-    cc.set_min_clip_dur(1)
-    test=cc.add_cut_video_to_timeline(video_file)
-    cc.export_xml("C:\\Users\\camer\\OneDrive\\Documents\\GitHub\\structuraBranch\\YoutubePrepTools\\text.xml")
-    cc._cleanup()
+##if __name__ == "__main__":
+##    video_file='F:\\Videos\\skyblock but\\EP 6\\ep6c1.mkv'
+##    cc=clipCutter()
+##    cc.set_min_clip_dur(1)
+##    test=cc.add_cut_video_to_timeline(video_file)
+##    cc.export_xml("C:\\Users\\camer\\OneDrive\\Documents\\GitHub\\structuraBranch\\YoutubePrepTools\\text.xml")
+##    cc._cleanup()
 
