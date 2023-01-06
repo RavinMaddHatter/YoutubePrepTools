@@ -39,6 +39,7 @@ if exists(confFile):
         BoilerplateInfo=data["boilerplate"]
 else:
     print("no config file found setting defaults")
+    data={}
     BoilerplateInfo="temp boilerplate links and such"
     updateSave(0.05, 0.05,0.1, 1)
     
@@ -244,6 +245,8 @@ if __name__=="__main__":
         cc._cleanup()
     def save():
         updateSave(lead_in.get(), lead_out.get(),min_silent_dur_var.get(), clip_dur.get())
+    def exit():
+        window.destroy()
     window = Tk()
     window.title('Youtube Video Publishing Tools')
     label_file_explorer = Label(window,
@@ -355,4 +358,4 @@ if __name__=="__main__":
     row+=1
     button_save.grid(column = 1, row = row)
     button_exit.grid(column = 2,row = row, columnspan=audioChans-1)
-        
+    window.mainloop()
