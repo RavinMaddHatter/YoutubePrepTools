@@ -19,11 +19,13 @@ import json
 from pathlib import Path
 import cutter
 import glob
-import win32gui
 import re
-import keyboard
-import time
 confFile="youtubeDescription.json"
+data=None
+BoilerplateInfo=None
+slider_defaults = None
+sliders_enabled = None
+audioChans=6
 def updateSave(in_space, out_space,min_silent, min_clip):
     data={}
     data["boilerplate"]=BoilerplateInfo
@@ -31,16 +33,31 @@ def updateSave(in_space, out_space,min_silent, min_clip):
     data["out_space"]=out_space
     data["min_clip"]=min_clip
     data["min_silent"]=min_silent
+    data["sliders_enabled"]=sliders_enabled
+    data["slider_defaults"]=slider_defaults
+    
     with open(confFile,"w+") as file:
         json.dump(data,file, indent=2)
 if exists(confFile):
     with open(confFile) as file:
-        data=json.load(file)
-        BoilerplateInfo=data["boilerplate"]
-else:
-    print("no config file found setting defaults")
+        data = json.load(file)
+        BoilerplateInfo = data["boilerplate"]
+        
+        print("loaded sliders")
+        sliders_enabled = data["sliders_enabled"]
+        slider_defaults = data["slider_defaults"]
+        print(sliders_enabled)
+
+if BoilerplateInfo is None:
+    BoilerplateInfo="Default Test For Your Youtube Description/n"
+if slider_defaults is None:
+    slider_defaults = []
+    sliders_enabled = []
+    for i in range(audioChans):
+        slider_defaults.append(-24)
+        sliders_enabled.append(True)
+if data is None:
     data={}
-    BoilerplateInfo="temp boilerplate links and such"
     updateSave(0.05, 0.05,0.1, 1)
     
     
@@ -140,31 +157,8 @@ class markerProcessor:
         
 
 if __name__=="__main__":
-    default_level=-24
-    class WindowMgr:
-        """Encapsulates some calls to the winapi for window management"""
 
-        def __init__ (self):
-            """Constructor"""
-            self._handle = None
 
-        def find_window(self, class_name, window_name=None):
-            """find a window by its class_name"""
-            self._handle = win32gui.FindWindow(class_name, window_name)
-
-        def _window_enum_callback(self, hwnd, wildcard):
-            """Pass to win32gui.EnumWindows() to check all the opened windows"""
-            if re.match(wildcard, str(win32gui.GetWindowText(hwnd))) is not None:
-                self._handle = hwnd
-
-        def find_window_wildcard(self, wildcard):
-            """find a window whose title matches the wildcard regex"""
-            self._handle = None
-            win32gui.EnumWindows(self._window_enum_callback, wildcard)
-
-        def set_foreground(self):
-            """put the window in the foreground"""
-            win32gui.SetForegroundWindow(self._handle)
     def findCSV():
         filename = filedialog.askopenfilename(title = "Select a CSV File",
                                           filetypes = (("CSV files",
@@ -191,16 +185,6 @@ if __name__=="__main__":
         except:
             print("failed translation")
 
-    def fix_audio():
-        w = WindowMgr()
-        w.find_window_wildcard(".*DaVinci Resolve.*")
-        w.set_foreground()
-        time.sleep(0.1)
-        for i in range(num_clips.get()):
-            keyboard.press_and_release('f')
-            time.sleep(0.05)
-            keyboard.press_and_release('f10')
-            time.sleep(0.1)
     def do_settings(cc):
         levels=[]
         chans=[]
@@ -224,8 +208,7 @@ if __name__=="__main__":
         cc=cutter.clipCutter()
         do_settings(cc)
         cc.add_cut_video_to_timeline(video_file)
-        cc.export_xml(os.path.join(head,name+"-cut.xml"))
-        num_clips.set(len(cc.clips))
+        cc.export_edl(os.path.join(head,name+"-cut.edl"))
         cc._cleanup()
     def cut_folder():
         folder = filedialog.askdirectory()
@@ -239,11 +222,14 @@ if __name__=="__main__":
             print(file)
             cc.add_cut_video_to_timeline(file)
         print("combined file")
-        print(os.path.join(folder,(name+"-cut.xml")))
-        cc.export_xml(os.path.join(folder,(name+"-cut.xml")))
-        num_clips.set(len(cc.clips))
+        print(os.path.join(folder,(name+"-cut.edl")))
+        cc.export_edl(os.path.join(folder,(name+"-cut.edl")))
         cc._cleanup()
     def save():
+        for i in range(audioChans):
+            slider_defaults[i] = sliders[i].get()
+            sliders_enabled[i] = slider_chks[i].get()
+            
         updateSave(lead_in.get(), lead_out.get(),min_silent_dur_var.get(), clip_dur.get())
     def exit():
         window.destroy()
@@ -268,10 +254,6 @@ if __name__=="__main__":
                         text = "Cut Folder",
                         command = cut_folder,
                         width=20)
-    fix_audio_button = Button(window,
-                        text = "Fix Audio Tracks",
-                        command = fix_audio,
-                        width=20)
     button_exit = Button(window,
                      text = "Exit",
                      command = exit,
@@ -286,7 +268,7 @@ if __name__=="__main__":
                             width = 50, height = 2)
     st = ScrolledText(window, width=75, height = 5, relief="raised")
     st.insert(tk.INSERT,BoilerplateInfo)
-    audioChans=6
+    
     sliders=[]
     sliders_lb=[]
     sliders_ch=[]
@@ -296,13 +278,11 @@ if __name__=="__main__":
                             text = "ch {}".format(i+1),
                              height = 2))
         sliders.append(Scale(window, from_=0, to=-50))
-        sliders[i].set(default_level)
+        sliders[i].set(slider_defaults[i])
         slider_chks.append(IntVar())
-        slider_chks[i].set(0)
+        slider_chks[i].set(sliders_enabled[i])
         sliders_ch.append(Checkbutton(window,variable=slider_chks[i]))
     slider_chks[0].set(1)
-    num_clips=IntVar()
-    num_clips_ent=Entry(window,textvariable=num_clips, width=10)
     lead_in=DoubleVar()
     
     ld_in_ent=Entry(window,textvariable=lead_in, width=10)
@@ -323,7 +303,6 @@ if __name__=="__main__":
     min_silent_dur_var.set(data["min_silent"])
     row=1
     label_file_explorer.grid(column = 1, row = row, columnspan=audioChans)
-    auto_clicker = Label(window,text = "Fix Davinci",width = 15, height = 2)
     row+=1
   
     waveButton.grid(column = 1, row = row,columnspan=2)
@@ -344,11 +323,7 @@ if __name__=="__main__":
     ld_out_ent.grid(column = 2,row =row)
     clip_dur_ent.grid(column = 3,row =row)
     min_silent_dur_ent.grid(column = 4,row =row)
-    row+=1
-    auto_clicker.grid(column = 1,row =row, columnspan=audioChans)
-    row+=1
-    num_clips_ent.grid(column = 1,row =row)
-    fix_audio_button.grid(column = 2,row =row, columnspan=5)
+
     row+=1
     lbl_entry.grid(column = 1,row =row, columnspan=audioChans)
     row+=1
