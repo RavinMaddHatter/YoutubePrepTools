@@ -1,21 +1,13 @@
-import csv
-import pyperclip
-import time
-import boto3
-import urllib.request
+from csv import DictReader
+from pyperclip import copy
+import openai_translator as Translator
 import json
 import os
-from botocore.exceptions import ClientError
-import uuid
-import sys
-from importlib.machinery import SourceFileLoader
-import requests
 import tkinter as tk
 from tkinter import *
 from tkinter import filedialog
 from os.path import exists
 from tkinter.scrolledtext import ScrolledText
-import json
 from pathlib import Path
 import cutter
 import glob
@@ -26,6 +18,7 @@ BoilerplateInfo=None
 slider_defaults = None
 sliders_enabled = None
 audioChans=6
+translator=Translator.translator
 def updateSave(in_space, out_space,min_silent, min_clip):
     data={}
     data["boilerplate"]=BoilerplateInfo
@@ -48,95 +41,24 @@ if exists(confFile):
         slider_defaults = data["slider_defaults"]
         print(sliders_enabled)
 
-if BoilerplateInfo is None:
+if BoilerplateInfo == None:
     BoilerplateInfo="Default Test For Your Youtube Description/n"
-if slider_defaults is None:
+if slider_defaults == None:
     slider_defaults = []
     sliders_enabled = []
     for i in range(audioChans):
         slider_defaults.append(-24)
         sliders_enabled.append(True)
-if data is None:
+if data == None:
     data={}
     updateSave(0.05, 0.05,0.1, 1)
     
-    
-    
-
-
-class translator:
-    def __init__(self,s3Bucket="audioprocessing",profile="default"):
-        self.s3Bucket=s3Bucket
-        self.session = boto3.Session(profile_name=profile)
-        self.transcribe_client = self.session.client('transcribe')
-        self.s3_client = self.session.client('s3')
-    def audioToText(self,fileName):
-        print("uploading file")
-        obj_name=self.uploadFile(fileName)
-        job_name=str(uuid.uuid4())
-        url="s3://{}/{}".format(self.s3Bucket,obj_name)
-        name, extension = os.path.splitext(fileName)
-        self.handle=self.transcribe(job_name,url)
-        self.jsonTranslate=json.loads(requests.get(self.handle).content.decode('ascii'))
-        with open(name+"_raw_translation.json","w+") as file:
-            json.dump(self.jsonTranslate,file)
-        self.text=self.jsonTranslate["results"]["transcripts"][0]["transcript"]
-        
-        
-        
-        with open(name+".txt", "w+") as text_file:
-            text_file.write(self.text)
-        self.deleteFile(obj_name)
-    def uploadFile(self,fileName,object_name=None):
-        if object_name is None:
-            object_name = os.path.basename(fileName)
-        try:
-            response = self.s3_client.upload_file(fileName, self.s3Bucket, object_name)
-        except ClientError as e:
-            logging.error(e)
-            return "FAILED"
-        return object_name
-    def deleteFile(self, filename):
-        try:
-            self.s3_client.delete_object(Bucket = self.s3Bucket, Key = filename)
-        except ClientError as e:
-            logging.error(e)
-            return False
-        return True
-    def transcribe(self,job_name, file_uri):
-        self.transcribe_client.start_transcription_job(
-            TranscriptionJobName=job_name,
-            Media={'MediaFileUri': file_uri},
-            MediaFormat='wav',
-            LanguageCode='en-US'
-        )
-
-        max_tries = 360
-        while max_tries > 0:
-            max_tries -= 1
-            job = self.transcribe_client.get_transcription_job(TranscriptionJobName=job_name)
-            job_status = job['TranscriptionJob']['TranscriptionJobStatus']
-            if job_status in ['COMPLETED', 'FAILED']:
-                print(f"Job {job_name} is {job_status}.")
-                
-                if job_status == 'COMPLETED':
-                    return job['TranscriptionJob']['Transcript']['TranscriptFileUri']
-                break
-            else:
-                print(f"Waiting for {job_name}. Current status is {job_status}.")
-            time.sleep(10)
-
-
-
-
-
-
 
 class markerProcessor:
     def __init__(self,file):
         self.markers=[]
         with open(file, newline='') as csvfile:
-            reader = csv.DictReader(csvfile, delimiter=',')
+            reader = DictReader(csvfile, delimiter=',')
             for row in reader:
                 time=row["Source In"].split(":")
                 time[0]=int(time[0])-1
@@ -150,7 +72,7 @@ class markerProcessor:
                 self.markers.append(time+" "+row["Notes"])
     def stringToClipboard(self):
         print("here")
-        pyperclip.copy(BoilerplateInfo+"\n\r".join(self.markers))
+        copy(BoilerplateInfo+"\n\r".join(self.markers))
     def stringToFile(self,name):
         with open(name, "w+") as text_file:
             text_file.write("\n\r".join(self.markers))

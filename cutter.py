@@ -1,10 +1,7 @@
 import numpy as np
-import scipy.io
 import pandas as pd
 from scipy.io import wavfile
-import time
 import subprocess
-#import ffprobe
 import access_ffprobe as ffprobe
 import tempfile
 import shutil
