@@ -2,6 +2,7 @@ from csv import DictReader
 from pyperclip import copy
 import openai_translator as Translator
 import json
+import requests
 import os
 import tkinter as tk
 from tkinter import *
@@ -51,7 +52,11 @@ if slider_defaults == None:
         sliders_enabled.append(True)
 if data == None:
     data={}
-    updateSave(0.05, 0.05,0.1, 1)
+    updateSave(0.1, 0.1,0.1, 1)
+    data["in_space"]=0.1
+    data["out_space"]=0.1
+    data["min_clip"]=1
+    data["min_silent"]=0.1
     
 
 class markerProcessor:
@@ -104,8 +109,9 @@ if __name__=="__main__":
             trans=translator()
             trans.audioToText(filename)
             print("Finished")
-        except:
+        except Exception as e:
             print("failed translation")
+            print(e)
 
     def do_settings(cc):
         levels=[]
