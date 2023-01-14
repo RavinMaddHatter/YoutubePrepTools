@@ -1,18 +1,18 @@
+import time
+t1=time.time()
+import cutter
+import openai_translator as Translator
+
 from csv import DictReader
 from pyperclip import copy
-import openai_translator as Translator
-import json
-import requests
-import os
-import tkinter as tk
-from tkinter import *
-from tkinter import filedialog
-from os.path import exists
+from json import dump, load
+from tkinter import Tk, Label, Button, INSERT, Scale, IntVar, Checkbutton
+from tkinter import filedialog, Entry, DoubleVar
+from os.path import exists, split, join, getmtime
 from tkinter.scrolledtext import ScrolledText
 from pathlib import Path
-import cutter
-import glob
-import re
+from glob import glob
+print(time.time()-t1)
 confFile="youtubeDescription.json"
 data=None
 BoilerplateInfo=None
@@ -31,10 +31,10 @@ def updateSave(in_space, out_space,min_silent, min_clip):
     data["slider_defaults"]=slider_defaults
     
     with open(confFile,"w+") as file:
-        json.dump(data,file, indent=2)
+        dump(data,file, indent=2)
 if exists(confFile):
     with open(confFile) as file:
-        data = json.load(file)
+        data = load(file)
         BoilerplateInfo = data["boilerplate"]
         
         print("loaded sliders")
@@ -49,7 +49,8 @@ if slider_defaults == None:
     sliders_enabled = []
     for i in range(audioChans):
         slider_defaults.append(-24)
-        sliders_enabled.append(True)
+        sliders_enabled.append(False)
+    sliders_enabled[0]=True
 if data == None:
     data={}
     updateSave(0.1, 0.1,0.1, 1)
@@ -76,8 +77,7 @@ class markerProcessor:
                 
                 self.markers.append(time+" "+row["Notes"])
     def stringToClipboard(self):
-        print("here")
-        copy(BoilerplateInfo+"\n\r".join(self.markers))
+        copy(BoilerplateInfo+"\n\r\n\r".join(self.markers))
     def stringToFile(self,name):
         with open(name, "w+") as text_file:
             text_file.write("\n\r".join(self.markers))
@@ -97,8 +97,9 @@ if __name__=="__main__":
             mk=markerProcessor(filename)
             mk.stringToClipboard()
             print("markers in clipboard")
-        except:
+        except Exception as e:
             print("Failed")
+            print(e)
     def transcribeVid():
         filename = filedialog.askopenfilename(title = "Select a WAV File",
                                           filetypes = (("WAV files",
@@ -132,26 +133,26 @@ if __name__=="__main__":
                                                        ("all files",
                                                         "*.*")))
         name = Path(video_file).stem
-        head, tail = os.path.split(video_file)
+        head, tail = split(video_file)
         cc=cutter.clipCutter()
         do_settings(cc)
         cc.add_cut_video_to_timeline(video_file)
-        cc.export_edl(os.path.join(head,name+"-cut.edl"))
+        cc.export_edl(join(head,name+"-cut.edl"))
         cc._cleanup()
     def cut_folder():
         folder = filedialog.askdirectory()
         cc=cutter.clipCutter()
-        name=os.path.split(folder)[-1]
+        name=split(folder)[-1]
         do_settings(cc)
-        files=glob.glob(os.path.join(folder,"*.mkv"))
-        files.sort(key=os.path.getmtime)
+        files=glob(join(folder,"*.mkv"))
+        files.sort(key=getmtime)
         print("cutting files:")
         for file in files:
             print(file)
             cc.add_cut_video_to_timeline(file)
         print("combined file")
-        print(os.path.join(folder,(name+"-cut.edl")))
-        cc.export_edl(os.path.join(folder,(name+"-cut.edl")))
+        print(join(folder,(name+"-cut.edl")))
+        cc.export_edl(join(folder,(name+"-cut.edl")))
         cc._cleanup()
     def save():
         for i in range(audioChans):
@@ -171,7 +172,7 @@ if __name__=="__main__":
                         command = findCSV,
                         width=20)
     waveButton = Button(window,
-                        text = "WAV to Translation",
+                        text = "Transcribe WAV",
                         command = transcribeVid,
                         width=20)
     cut_button = Button(window,
@@ -195,7 +196,7 @@ if __name__=="__main__":
                             text = "Description Tools",
                             width = 50, height = 2)
     st = ScrolledText(window, width=75, height = 5, relief="raised")
-    st.insert(tk.INSERT,BoilerplateInfo)
+    st.insert(INSERT,BoilerplateInfo)
     
     sliders=[]
     sliders_lb=[]
@@ -229,13 +230,14 @@ if __name__=="__main__":
     lead_out.set(data["out_space"])
     clip_dur.set(data["min_clip"])
     min_silent_dur_var.set(data["min_silent"])
+    audio_lb = Label(window,text = "Audio Tools",width = 15, height = 2)
     row=1
     label_file_explorer.grid(column = 1, row = row, columnspan=audioChans)
     row+=1
   
-    waveButton.grid(column = 1, row = row,columnspan=2)
-    cut_button.grid(column = 3, row = row,columnspan=2)
-    super_cut_button.grid(column = 5, row = row,columnspan=2)
+    
+    cut_button.grid(column = 0, row = row,columnspan=3)
+    super_cut_button.grid(column = 3, row = row,columnspan=3)
     row+=1
     for i in range(len(sliders)):
         sliders_lb[i].grid(column = i+1,row =row)
@@ -251,7 +253,11 @@ if __name__=="__main__":
     ld_out_ent.grid(column = 2,row =row)
     clip_dur_ent.grid(column = 3,row =row)
     min_silent_dur_ent.grid(column = 4,row =row)
-
+    row+=1
+    
+    audio_lb.grid(column = 1, row = row,columnspan=6)
+    row+=1
+    waveButton.grid(column = 1, row = row,columnspan=6)
     row+=1
     lbl_entry.grid(column = 1,row =row, columnspan=audioChans)
     row+=1

@@ -1,19 +1,19 @@
-import numpy as np
-import pandas as pd
+from numpy import lib, array, nan_to_num, where, logical_or, logical_and, append, logical_not
+from pandas import Series
 from scipy.io import wavfile
-import subprocess
+from subprocess import Popen, PIPE
 import access_ffprobe as ffprobe
-import tempfile
-import shutil
-from os import path
-import os
-import uuid
-import math
+from tempfile import mkdtemp
+from shutil import rmtree
+from os.path import basename, join
+from uuid import uuid4
+from math import floor
+
 
 def rolling_window(a, window):
     shape = a.shape[:-1] + (a.shape[-1] - window + 1, window)
     strides = a.strides + (a.strides[-1],)
-    return np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
+    return lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
 class clipCutter:
     def __init__(self):
         self.silent_thresh_list=[24,24,24,24]# set by function
@@ -28,7 +28,7 @@ class clipCutter:
         self.width=1920#can be set by importor by function
         self.height=1080#can be set by import or set by function
         self.durration=0#set by import
-        self.working_folder = tempfile.mkdtemp(prefix="youtubePrep-")#temp folder so we don't make a mess
+        self.working_folder = mkdtemp(prefix="youtubePrep-")#temp folder so we don't make a mess
         self.audio_tracks=0#gets set by audio import
         self.current_frame = 0 #tracking in timeline
         self.clips=[] # for internal only
@@ -54,7 +54,6 @@ class clipCutter:
         print("getting metadata")
         self.metadata=ffprobe.FFProbe(file_name)
         self.video_file_name=file_name
-        
         self.audio_tracks=len(self.metadata.audio)
         self.fps = self.metadata.video[0].framerate
         if self.default_size:
@@ -67,7 +66,7 @@ class clipCutter:
         except:
             [start_clips,stop_clips, total_length] = self._cut_audio()
             self.durration += sum(stop_clips-start_clips)
-            start_clips=np.array([])
+            start_clips=array([])
             stop_clips=[]
             total_length=0
             self.durration=0
@@ -78,20 +77,20 @@ class clipCutter:
 
         return self.clips
     def _cleanup(self):
-        shutil.rmtree(self.working_folder)
+        rmtree(self.working_folder)
     def _export_audio(self,chan):
         if self.video_file_name is not None:
             # sample test command, 
             #ffmpeg -i .\ep6c1.mkv -bitexact -map 0:1 -acodec pcm_s16le -ar 22050 -ac 1 audio.wav
             print("exporting audio channel {}".format(chan))
-            audio_path=path.join(self.working_folder,"audio{}_{}.wav".format(uuid.uuid4(),chan))
+            audio_path=join(self.working_folder,"audio{}_{}.wav".format(uuid4(),chan))
             cmd = 'ffmpeg -i "{}" -bitexact -map 0:{} -acodec pcm_s16le -ar 22050 -ac {} {}'.format(self.video_file_name,
                                                                                                   chan,
-                                                                                                  self.metadata.audio[chan].channels,
+                                                                                                  self.metadata.audio[chan-1].channels,
                                                                                                   audio_path)
             
             startupinfo = None
-            returnVals=subprocess.Popen(cmd,stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True).communicate()  ##needs clean up and error handling, but skipping for now.
+            returnVals=Popen(cmd,stdout=PIPE, stderr=PIPE, shell=True).communicate()
             print("export complete")
             return audio_path
     def _cut_audio(self):
@@ -106,7 +105,7 @@ class clipCutter:
                 print("audio track {} enabled".format(i+1))
                 active_thresh.append(-self.silent_thresh_list[i])
             
-        silent_tresh=max(active_thresh)
+        silent_tresh=max(active_thresh)#bug exists if we have too many chanels accepted.
         for i in range(min(len(self.enabled_clips),len(self.metadata.audio))):
             
             if self.enabled_clips[i]:
@@ -131,42 +130,42 @@ class clipCutter:
         #set window for scanning
         window=int(scan_interval*samplerate)
         # window scans max value
-        maxes= np.nan_to_num(pd.Series(data).rolling(window).max().to_numpy(), nan=0)
+        maxes= nan_to_num(Series(data).rolling(window).max().to_numpy(), nan=0)
         # window scann min values
-        mins=np.nan_to_num(pd.Series(data).rolling(window).min().to_numpy(), nan=0)
+        mins=nan_to_num(Series(data).rolling(window).min().to_numpy(), nan=0)
         # calculates peak to peak for each window
         max_vs_min = maxes - mins
         if where_loud is None:
             #checks where peak to peak is greater than loud threshold
-            where_loud = np.where(max_vs_min > threshold,True,False)
+            where_loud = where(max_vs_min > threshold,True,False)
         else:
-            where_loud_temp = np.where(max_vs_min > threshold,True,False)
-            where_loud = np.logical_or(where_loud_temp,where_loud)
+            where_loud_temp = where(max_vs_min > threshold,True,False)
+            where_loud = logical_or(where_loud_temp,where_loud)
         #Find edges where there is a transition between loud and quite
         edges = where_loud[:-1] != where_loud[1:]
         #find rising edges by checking where the signal was loud and hand just transitioned
-        rising = np.logical_and(where_loud[1:], edges)
+        rising = logical_and(where_loud[1:], edges)
         #find falling edges by checking where the signal is quiet and has just transitioned
-        falling = np.logical_and(np.logical_not(where_loud[1:]),edges)
+        falling = logical_and(logical_not(where_loud[1:]),edges)
         #get timestamps of edges 
-        index_of_rising_edges = np.where(rising)[0]
-        index_of_falling_edges = np.where(falling)[0]
+        index_of_rising_edges = where(rising)[0]
+        index_of_falling_edges = where(falling)[0]
 
         
         if (index_of_rising_edges.size > index_of_falling_edges.size):
-            index_of_falling_edges=np.append(index_of_falling_edges,[edges.size-1])
+            index_of_falling_edges=append(index_of_falling_edges,[edges.size-1])
             
         if index_of_rising_edges.size==0:
-            index_of_rising_edges=np.array([0])
-            index_of_falling_edges=np.array([data.size])
+            index_of_rising_edges=array([0])
+            index_of_falling_edges=array([data.size])
         if (index_of_rising_edges[0]<index_of_falling_edges[0]):
-            index_of_rising_edges=np.append(index_of_rising_edges,[edges.size])
-            index_of_falling_edges=np.append([0],index_of_falling_edges)
+            index_of_rising_edges=append(index_of_rising_edges,[edges.size])
+            index_of_falling_edges=append([0],index_of_falling_edges)
             dur_quiet=index_of_rising_edges-index_of_falling_edges
             
         #Calculate silent durrations
         # check that it is quiet long enough
-        quiet_long_enough = np.where(dur_quiet > self.min_silent_dur*samplerate,True,False)
+        quiet_long_enough = where(dur_quiet > self.min_silent_dur*samplerate,True,False)
 
         
         # remove edges related to short silences
@@ -174,10 +173,10 @@ class clipCutter:
         index_of_falling_edges=index_of_falling_edges[quiet_long_enough[:index_of_falling_edges.size]]
         # calculate loud durrations
         if index_of_falling_edges.size>1:
-            index_of_falling_edges=np.append(index_of_falling_edges[1:],index_of_falling_edges[0])
+            index_of_falling_edges=append(index_of_falling_edges[1:],index_of_falling_edges[0])
             dur_loud=index_of_falling_edges-index_of_rising_edges
             # check if it is loud long enough
-            loud_long_enough = np.where(dur_loud > self.min_clip_dur*samplerate,True,False)
+            loud_long_enough = where(dur_loud > self.min_clip_dur*samplerate,True,False)
             #remove clips that are too short
             index_of_rising_edges = index_of_rising_edges[loud_long_enough]
             index_of_falling_edges=index_of_falling_edges[loud_long_enough[:index_of_falling_edges.size]]
@@ -190,7 +189,7 @@ class clipCutter:
         return [rising_times,falling_times,totalLength]
     def export_edl(self,edl_file_path,name=None):
         if name is None:
-            name = os.path.basename(edl_file_path).split(".")[0]
+            name = basename(edl_file_path).split(".")[0]
         #self.clips.append({"in":start_clips[i],"out":stop_clips[i]"file_name":file_name})
         with open(edl_file_path,"w+") as file:
             file.write("TITLE: {}\n\r".format(name))
@@ -207,10 +206,10 @@ class clipCutter:
                 file.write("* FROM CLIP NAME: {}\n\n".format(clip["file_name"]))
                 i+=1
     def time_to_time_stamp(self,time):
-        hours=math.floor(time/3600)
-        minutes=math.floor((time-hours*3600)/60)
-        seconds = math.floor(time-hours*3600-minutes*60)
-        frames= math.floor((time-hours*3600-minutes*60-seconds)*self.fps)
+        hours=floor(time/3600)
+        minutes=floor((time-hours*3600)/60)
+        seconds = floor(time-hours*3600-minutes*60)
+        frames= floor((time-hours*3600-minutes*60-seconds)*self.fps)
         timestamp="{:02d}:{:02d}:{:02d}:{:02d}".format(hours,minutes,seconds,frames)
         return timestamp
 
