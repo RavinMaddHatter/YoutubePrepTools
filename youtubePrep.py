@@ -1,13 +1,15 @@
 import time
 t1=time.time()
+from time import sleep
+from threading import Thread
 import cutter
 import openai_translator as Translator
-
+from queue import Queue
 from csv import DictReader
 from pyperclip import copy
 from json import dump, load
-from tkinter import Tk, Label, Button, INSERT, Scale, IntVar, Checkbutton
-from tkinter import filedialog, Entry, DoubleVar
+from tkinter import Tk, Label, Button, INSERT, Scale, IntVar, Checkbutton, END
+from tkinter import filedialog, Entry, DoubleVar, ttk, Toplevel, StringVar, OptionMenu
 from os.path import exists, split, join, getmtime
 from tkinter.scrolledtext import ScrolledText
 from pathlib import Path
@@ -20,8 +22,8 @@ slider_defaults = None
 sliders_enabled = None
 audioChans=6
 translator=Translator.translator
-def updateSave(in_space, out_space,min_silent, min_clip):
-    data={}
+def updateSave(in_space, out_space,min_silent, min_clip,model):
+    data["model"]=model
     data["boilerplate"]=BoilerplateInfo
     data["in_space"]=in_space
     data["out_space"]=out_space
@@ -40,7 +42,7 @@ if exists(confFile):
         print("loaded sliders")
         sliders_enabled = data["sliders_enabled"]
         slider_defaults = data["slider_defaults"]
-        print(sliders_enabled)
+        print(data)
 
 if BoilerplateInfo == None:
     BoilerplateInfo="Default Test For Your Youtube Description/n"
@@ -51,14 +53,17 @@ if slider_defaults == None:
         slider_defaults.append(-24)
         sliders_enabled.append(False)
     sliders_enabled[0]=True
+   
 if data == None:
     data={}
-    updateSave(0.1, 0.1,0.1, 1)
+    data["model"]="base"
     data["in_space"]=0.1
     data["out_space"]=0.1
     data["min_clip"]=1
     data["min_silent"]=0.1
-    
+    updateSave(0.1, 0.1,0.1, 1,"base")
+elif "model" not in data.keys():
+    data["model"]="base"
 
 class markerProcessor:
     def __init__(self,file):
@@ -77,15 +82,34 @@ class markerProcessor:
                 
                 self.markers.append(time+" "+row["Notes"])
     def stringToClipboard(self):
-        copy(BoilerplateInfo+"\n\r\n\r".join(self.markers))
+        copy(BoilerplateInfo+"\n\r\n\rChapters: \n\r"+"\n\r".join(self.markers))
     def stringToFile(self,name):
         with open(name, "w+") as text_file:
             text_file.write("\n\r".join(self.markers))
         
 
 if __name__=="__main__":
-
-
+    def progress_bar(operation_name,update_queue):
+        popup = Toplevel(height=100,width=500)
+        status_text=StringVar()
+        popup_description = Label(popup, textvariable = status_text)
+        popup_description.grid(row=0,column=0)
+        progress = 0
+        progress_var = DoubleVar()
+        progress_bar = ttk.Progressbar(popup, variable=progress_var, maximum=100)
+        progress_bar.grid(row=1, column=0)
+        complete=False
+        while not complete:
+            sleep(0.01)
+            if not update_queue.empty():
+                update=update_queue.get()
+                progress_var.set(update["percent"])
+                status_text.set(update["state"])
+                popup.update()
+                popup.focus_force()
+                complete =( update["state"] == "done")
+        popup.destroy()
+        popup.update()
     def findCSV():
         filename = filedialog.askopenfilename(title = "Select a CSV File",
                                           filetypes = (("CSV files",
@@ -93,13 +117,16 @@ if __name__=="__main__":
                                                        ("all files",
                                                         "*.*")))
         try:
-            BoilerplateInfo=st.get("1.0", tk.END)
+            BoilerplateInfo=st.get("1.0", END)
             mk=markerProcessor(filename)
             mk.stringToClipboard()
             print("markers in clipboard")
         except Exception as e:
             print("Failed")
             print(e)
+    def transcribeProcess(transcribe_queue,filename):
+        trans=translator(transcribe_queue,selected_model.get())
+        trans.audioToText(filename)
     def transcribeVid():
         filename = filedialog.askopenfilename(title = "Select a WAV File",
                                           filetypes = (("WAV files",
@@ -107,9 +134,11 @@ if __name__=="__main__":
                                                        ("all files",
                                                         "*.*")))
         try:
-            trans=translator()
-            trans.audioToText(filename)
-            print("Finished")
+            transcribe_queue=Queue()
+            popup=Thread(target=progress_bar,args=("Transcribing Video",transcribe_queue,))
+            popup.start()
+            trans=Thread(target=transcribeProcess,args=(transcribe_queue,filename,))
+            trans.start()
         except Exception as e:
             print("failed translation")
             print(e)
@@ -126,40 +155,59 @@ if __name__=="__main__":
         cc.set_min_clip_dur(clip_dur.get())
         cc.set_enabled_tracks(chans)
         cc.set_min_silent_dur(min_silent_dur_var.get())
+    def cut_clip_process(queue,video_file):
+        name = Path(video_file).stem
+        head, tail = split(video_file)
+        cc=cutter.clipCutter(queue)
+        try:
+            do_settings(cc)
+            cc.add_cut_video_to_timeline(video_file)
+            cc.export_edl(join(head,name+"-cut.edl"))
+            cc._cleanup()
+        except Exception as e:
+            print(e)
+            cc._cleanup()
     def cut_clip():
         video_file = filedialog.askopenfilename(title = "Select a WAV File",
                                           filetypes = (("video files",
                                                         "*.mkv*"),
                                                        ("all files",
                                                         "*.*")))
-        name = Path(video_file).stem
-        head, tail = split(video_file)
-        cc=cutter.clipCutter()
-        do_settings(cc)
-        cc.add_cut_video_to_timeline(video_file)
-        cc.export_edl(join(head,name+"-cut.edl"))
-        cc._cleanup()
+        
+        cut_queue=Queue()
+        popup=Thread(target=progress_bar,args=("Cutting Video",cut_queue,))
+        popup.start()
+        trans=Thread(target=cut_clip_process,args=(cut_queue,video_file,))
+        trans.start()
+    def cut_folder_process(queue,folder):
+        cc=cutter.clipCutter(queue)
+        try:
+            name=split(folder)[-1]
+            do_settings(cc)
+            files=glob(join(folder,"*.mkv"))
+            files.sort(key=getmtime)
+            for file in files:
+                print(file)
+                cc.add_cut_video_to_timeline(file)
+            print(join(folder,(name+"-cut.edl")))
+            cc.export_edl(join(folder,(name+"-cut.edl")))
+            cc._cleanup()
+        except Exception as e:
+            print(e)
+            cc._cleanup()
     def cut_folder():
         folder = filedialog.askdirectory()
-        cc=cutter.clipCutter()
-        name=split(folder)[-1]
-        do_settings(cc)
-        files=glob(join(folder,"*.mkv"))
-        files.sort(key=getmtime)
-        print("cutting files:")
-        for file in files:
-            print(file)
-            cc.add_cut_video_to_timeline(file)
-        print("combined file")
-        print(join(folder,(name+"-cut.edl")))
-        cc.export_edl(join(folder,(name+"-cut.edl")))
-        cc._cleanup()
+        cut_queue=Queue()
+        popup=Thread(target=progress_bar,args=("Cutting Video",cut_queue,))
+        popup.start()
+        trans=Thread(target=cut_folder_process,args=(cut_queue,folder,))
+        trans.start()
     def save():
         for i in range(audioChans):
             slider_defaults[i] = sliders[i].get()
             sliders_enabled[i] = slider_chks[i].get()
-            
-        updateSave(lead_in.get(), lead_out.get(),min_silent_dur_var.get(), clip_dur.get())
+        
+        updateSave(lead_in.get(), lead_out.get(),min_silent_dur_var.get(), clip_dur.get(),selected_model.get())
     def exit():
         window.destroy()
     window = Tk()
@@ -197,7 +245,11 @@ if __name__=="__main__":
                             width = 50, height = 2)
     st = ScrolledText(window, width=75, height = 5, relief="raised")
     st.insert(INSERT,BoilerplateInfo)
-    
+    options = ["tiny", "base", "small", "medium", "large"]
+    model_label = Label(window,text = "Speach Model Size",width = 15, height = 2)
+    selected_model = StringVar()
+    selected_model.set(data["model"])
+    model_select = OptionMenu( window , selected_model , *options )
     sliders=[]
     sliders_lb=[]
     sliders_ch=[]
@@ -257,7 +309,9 @@ if __name__=="__main__":
     
     audio_lb.grid(column = 1, row = row,columnspan=6)
     row+=1
-    waveButton.grid(column = 1, row = row,columnspan=6)
+    model_label.grid(column = 0, row = row,columnspan=2)
+    model_select.grid(column = 2, row = row,columnspan=1)
+    waveButton.grid(column = 3, row = row,columnspan=3)
     row+=1
     lbl_entry.grid(column = 1,row =row, columnspan=audioChans)
     row+=1

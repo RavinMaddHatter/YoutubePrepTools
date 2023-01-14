@@ -8,6 +8,7 @@ from shutil import rmtree
 from os.path import basename, join
 from uuid import uuid4
 from math import floor
+from queue import Queue
 
 
 def rolling_window(a, window):
@@ -15,7 +16,9 @@ def rolling_window(a, window):
     strides = a.strides + (a.strides[-1],)
     return lib.stride_tricks.as_strided(a, shape=shape, strides=strides)
 class clipCutter:
-    def __init__(self):
+    def __init__(self,queue=Queue()):
+        self.status_queue=queue
+        self.status_queue.put({"percent":0,"state":"Starting Clip Process"})
         self.silent_thresh_list=[24,24,24,24]# set by function
         self.enabled_clips=[True, False, False, False] # set by function
         self.lead_in=0.05 #seconds set by function
@@ -51,7 +54,7 @@ class clipCutter:
         self.width = width
         self.default_size=False
     def add_cut_video_to_timeline(self,file_name,cut_channel=1):
-        print("getting metadata")
+        self.status_queue.put({"percent":20,"state":"getting metadata"})
         self.metadata=ffprobe.FFProbe(file_name)
         self.video_file_name=file_name
         self.audio_tracks=len(self.metadata.audio)
@@ -59,7 +62,7 @@ class clipCutter:
         if self.default_size:
             self.width = self.metadata.video[0].width
             self.height = self.metadata.video[0].height
-        print("cutting audio")
+        self.status_queue.put({"percent":30,"state":"cutting audio"})
         try: 
             [start_clips,stop_clips, total_length] = self._cut_audio()
             self.durration += sum(stop_clips-start_clips)
@@ -71,18 +74,18 @@ class clipCutter:
             total_length=0
             self.durration=0
             print("error")
-        print("compiling clips")
+        self.status_queue.put({"percent":80,"state":"Compiling Clips"})
         for i in range(start_clips.size):
             self.clips.append({"in":start_clips[i],"out":stop_clips[i],"file_name":file_name})
 
         return self.clips
     def _cleanup(self):
         rmtree(self.working_folder)
+        self.status_queue.put({"percent":100,"state":"done"})
     def _export_audio(self,chan):
         if self.video_file_name is not None:
             # sample test command, 
             #ffmpeg -i .\ep6c1.mkv -bitexact -map 0:1 -acodec pcm_s16le -ar 22050 -ac 1 audio.wav
-            print("exporting audio channel {}".format(chan))
             audio_path=join(self.working_folder,"audio{}_{}.wav".format(uuid4(),chan))
             cmd = 'ffmpeg -i "{}" -bitexact -map 0:{} -acodec pcm_s16le -ar 22050 -ac {} {}'.format(self.video_file_name,
                                                                                                   chan,
@@ -91,21 +94,18 @@ class clipCutter:
             
             startupinfo = None
             returnVals=Popen(cmd,stdout=PIPE, stderr=PIPE, shell=True).communicate()
-            print("export complete")
             return audio_path
     def _cut_audio(self):
         self.enabled_clips
         self.silent_thresh_list
-#        self._import_audio_chan()
         data=None
         where_loud=None
         active_thresh=[]
         for i in range(min(len(self.enabled_clips),len(self.metadata.audio))):
             if self.enabled_clips[i]:
-                print("audio track {} enabled".format(i+1))
                 active_thresh.append(-self.silent_thresh_list[i])
             
-        silent_tresh=max(active_thresh)#bug exists if we have too many chanels accepted.
+        silent_tresh=max(active_thresh)
         for i in range(min(len(self.enabled_clips),len(self.metadata.audio))):
             
             if self.enabled_clips[i]:
@@ -119,7 +119,6 @@ class clipCutter:
                     data=temp_data
                 else:
                     data=(data*i+temp_data)/i+1
-        print("merge complete sampling data")
         totalLength=data.size/samplerate
         # Calculate signal p-p
         max_delta=(int(data.max())-int(data.min()))
@@ -188,6 +187,7 @@ class clipCutter:
         print([totalLength,len(rising_times)])
         return [rising_times,falling_times,totalLength]
     def export_edl(self,edl_file_path,name=None):
+        self.status_queue.put({"percent":95,"state":"Exporting EDL"})
         if name is None:
             name = basename(edl_file_path).split(".")[0]
         #self.clips.append({"in":start_clips[i],"out":stop_clips[i]"file_name":file_name})
@@ -212,5 +212,7 @@ class clipCutter:
         frames= floor((time-hours*3600-minutes*60-seconds)*self.fps)
         timestamp="{:02d}:{:02d}:{:02d}:{:02d}".format(hours,minutes,seconds,frames)
         return timestamp
+
+
 
 
