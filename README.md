@@ -3,7 +3,7 @@ This is a set of tools I put together to make youtube video publishing much easi
 
 This project is Free and Open source, and is powered by other opensource projects. 
 ## Introduction
-[![How this works](http://img.youtube.com/vi/YOUTUBE_VIDEO_ID_HERE/0.jpg)](http://www.youtube.com/watch?v=YOUTUBE_VIDEO_ID_HERE "Video Title")
+[![How this works](http://img.youtube.com/vi/npFae43ULP0/0.jpg)](https://youtu.be/npFae43ULP0 "Faster Youtube Video Publishing/Editing Tools using OpenAI and Davinci")
 
 ## installation
 To install this took you will first need to install FFMPEG. FFMEG is an opensource tool that allows for the minipulation of Video and Audio files. FFMPEG needs to be added to path, how you do that is explained in this video.
