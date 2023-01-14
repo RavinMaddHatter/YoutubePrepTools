@@ -58,8 +58,13 @@ After exporting the markers from the edit index as CSV (watch intro video for ho
 The save tool saves the current settings, the exit button closes the program.
 
 ## social media
+
+
 [Discord](https://discord.com/invite/M7MHtUab2r)
+
+
 [Youtube](https://www.youtube.com/channel/UCKHWmRRTGUc0Ssgd3SarD5g)
 
 If you would like tip the devloper of the tool,
+
 [ko-fi](https://ko-fi.com/ravinmaddhatter)
