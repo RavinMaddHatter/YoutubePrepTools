@@ -15,55 +15,49 @@ from tkinter.scrolledtext import ScrolledText
 from pathlib import Path
 from glob import glob
 print(time.time()-t1)
-confFile="youtubeDescription.json"
 data=None
 BoilerplateInfo=None
 slider_defaults = None
 sliders_enabled = None
 audioChans=6
 translator=Translator.translator
-def updateSave(in_space, out_space,min_silent, min_clip,model):
-    data["model"]=model
-    data["boilerplate"]=BoilerplateInfo
-    data["in_space"]=in_space
-    data["out_space"]=out_space
-    data["min_clip"]=min_clip
-    data["min_silent"]=min_silent
-    data["sliders_enabled"]=sliders_enabled
-    data["slider_defaults"]=slider_defaults
-    
-    with open(confFile,"w+") as file:
-        dump(data,file, indent=2)
-if exists(confFile):
-    with open(confFile) as file:
-        data = load(file)
-        BoilerplateInfo = data["boilerplate"]
-        
-        print("loaded sliders")
-        sliders_enabled = data["sliders_enabled"]
-        slider_defaults = data["slider_defaults"]
-        print(data)
 
-if BoilerplateInfo == None:
-    BoilerplateInfo="Default Test For Your Youtube Description/n"
-if slider_defaults == None:
-    slider_defaults = []
-    sliders_enabled = []
-    for i in range(audioChans):
-        slider_defaults.append(-24)
-        sliders_enabled.append(False)
-    sliders_enabled[0]=True
-   
-if data == None:
-    data={}
-    data["model"]="base"
-    data["in_space"]=0.1
-    data["out_space"]=0.1
-    data["min_clip"]=1
-    data["min_silent"]=0.1
-    updateSave(0.1, 0.1,0.1, 1,"base")
-elif "model" not in data.keys():
-    data["model"]="base"
+def updateSave(data,file_name="default_profile.json"):
+    
+    with open(file_name,"w+") as file:
+        dump(data,file, indent=2)
+def load_file(file_name="default_profile.json"):
+    print(file_name)
+    data = {}
+    if exists(file_name):
+        with open(file_name) as file:
+            data = load(file)
+    
+    if "boilerplate" not in data.keys():
+        data["boilerplate"]="Default Test For Your Youtube Description/n"
+    if "slider_defaults" not in data.keys():
+        data["sliders_enabled"] = []
+        data["slider_defaults"] = []
+        for i in range(audioChans):
+            data["slider_defaults"].append(-24)
+            data["sliders_enabled"].append(False)
+        data["sliders_enabled"][0]=True
+    if "model" not in data.keys():
+        data["model"]="base"
+    if "in_space" not in data.keys():
+        data["in_space"]=0.1
+    if "out_space" not in data.keys():
+        data["out_space"]=0.1
+    if "min_clip" not in data.keys():
+        data["min_clip"]=1
+    if "min_silent" not in data.keys():
+        data["min_silent"]=0.1
+    if "min_silent" not in data.keys():
+        data["min_silent"]=0.1
+    updateSave(data)
+    return data
+data = load_file()
+
 
 class markerProcessor:
     def __init__(self,file):
@@ -82,7 +76,7 @@ class markerProcessor:
                 
                 self.markers.append(time+" "+row["Notes"])
     def stringToClipboard(self):
-        copy(BoilerplateInfo+"\n\r\n\rChapters: \n\r"+"\n\r".join(self.markers))
+        copy(data["boilerplate"]+"\n\r\n\rChapters: \n\r"+"\n\r".join(self.markers))
     def stringToFile(self,name):
         with open(name, "w+") as text_file:
             text_file.write("\n\r".join(self.markers))
@@ -116,29 +110,37 @@ if __name__=="__main__":
                                                         "*.CSV*"),
                                                        ("all files",
                                                         "*.*")))
+        
+        data["boilerplate"]=st.get("1.0", END)
+        mk=markerProcessor(filename)
+        mk.stringToClipboard()
+        print("markers in clipboard")
         try:
-            BoilerplateInfo=st.get("1.0", END)
-            mk=markerProcessor(filename)
-            mk.stringToClipboard()
-            print("markers in clipboard")
+            pass
         except Exception as e:
             print("Failed")
             print(e)
     def transcribeProcess(transcribe_queue,filename):
+        print("setting moddel")
         trans=translator(transcribe_queue,selected_model.get())
+        print("running model")
         trans.audioToText(filename)
+        print("finished")
     def transcribeVid():
-        filename = filedialog.askopenfilename(title = "Select a WAV File",
-                                          filetypes = (("WAV files",
-                                                        "*.WAV*"),
+        filename = filedialog.askopenfilename(title = "Select a Media File File",
+                                          filetypes = (("Media Files",
+                                                        "*.WAV *.MP4 *.MOV *.AVI *.Y4M *.MKV"),
                                                        ("all files",
                                                         "*.*")))
         try:
             transcribe_queue=Queue()
+            print("queue sent")
             popup=Thread(target=progress_bar,args=("Transcribing Video",transcribe_queue,))
             popup.start()
+
             trans=Thread(target=transcribeProcess,args=(transcribe_queue,filename,))
             trans.start()
+            print("transcribe finished")
         except Exception as e:
             print("failed translation")
             print(e)
@@ -202,12 +204,44 @@ if __name__=="__main__":
         popup.start()
         trans=Thread(target=cut_folder_process,args=(cut_queue,folder,))
         trans.start()
-    def save():
+    def set_save_data():
         for i in range(audioChans):
-            slider_defaults[i] = sliders[i].get()
-            sliders_enabled[i] = slider_chks[i].get()
-        
-        updateSave(lead_in.get(), lead_out.get(),min_silent_dur_var.get(), clip_dur.get(),selected_model.get())
+            data["slider_defaults"][i] = sliders[i].get()
+            data["sliders_enabled"][i] = slider_chks[i].get()
+        data["boilerplate"]=st.get("1.0",END)
+        data["model"]=selected_model.get()
+        data["in_space"]=lead_in.get()
+        data["out_space"]=lead_out.get()
+        data["min_clip"]=clip_dur.get()
+        data["min_silent"]=min_silent_dur_var.get()
+    def load_profile():
+        settings_file = filedialog.askopenfilename(title = "Select a profile",
+                                          filetypes = (("json files",
+                                                        "*.json*"),
+                                                       ("all files",
+                                                        "*.*")))
+        load_file(settings_file)
+        for i in range(audioChans):
+            sliders[i].set(data["slider_defaults"][i])
+            slider_chks[i].set(data["sliders_enabled"][i])
+        st.delete('1.0', END)
+        st.insert(INSERT,data["boilerplate"])
+        selected_model.set(data["model"])
+        lead_in.set(data["in_space"])
+        lead_out.set(data["out_space"])
+        clip_dur.set(data["min_clip"])
+        min_silent_dur_var.set(data["min_silent"])
+    def save_as():
+        file_name=filedialog.asksaveasfile(title = "Set Profile File Name",
+                                          filetypes = (("JSON",
+                                                        "*.json*"),)).name
+        if not(file_name.endswith(".json") or file_name.endswith(".json")):
+            file_name+=".json"
+        set_save_data()
+        updateSave(data,file_name=file_name)
+    def save():
+        set_save_data()
+        updateSave(data)
     def exit():
         window.destroy()
     window = Tk()
@@ -220,7 +254,7 @@ if __name__=="__main__":
                         command = findCSV,
                         width=20)
     waveButton = Button(window,
-                        text = "Transcribe WAV",
+                        text = "Transcribe Media",
                         command = transcribeVid,
                         width=20)
     cut_button = Button(window,
@@ -237,15 +271,24 @@ if __name__=="__main__":
                         width=20)
     
     button_save = Button(window,
-                     text = "Save",
+                     text = "Save Default",
                      command = save,
+                        width=20)
+    button_save_as = Button(window,
+                     text = "Save as",
+                     command = save_as,
+                        width=20)
+    button_load = Button(window,
+                     text = "Load",
+                     command = load_profile,
                         width=20)
     lbl_entry = Label(window,
                             text = "Description Tools",
                             width = 50, height = 2)
     st = ScrolledText(window, width=75, height = 5, relief="raised")
-    st.insert(INSERT,BoilerplateInfo)
-    options = ["tiny", "base", "small", "medium", "large"]
+    
+    st.insert(INSERT,data["boilerplate"])
+    options = list(Translator._MODELS.keys())
     model_label = Label(window,text = "Speach Model Size",width = 15, height = 2)
     selected_model = StringVar()
     selected_model.set(data["model"])
@@ -259,9 +302,9 @@ if __name__=="__main__":
                             text = "ch {}".format(i+1),
                              height = 2))
         sliders.append(Scale(window, from_=0, to=-50))
-        sliders[i].set(slider_defaults[i])
+        sliders[i].set(data["slider_defaults"][i])
         slider_chks.append(IntVar())
-        slider_chks[i].set(sliders_enabled[i])
+        slider_chks[i].set(data["sliders_enabled"][i])
         sliders_ch.append(Checkbutton(window,variable=slider_chks[i]))
     slider_chks[0].set(1)
     lead_in=DoubleVar()
@@ -320,5 +363,7 @@ if __name__=="__main__":
     csvButton.grid(column = 1, row = row,columnspan=audioChans)
     row+=1
     button_save.grid(column = 1, row = row)
-    button_exit.grid(column = 2,row = row, columnspan=audioChans-1)
+    button_save_as.grid(column = 2, row = row)
+    button_load.grid(column = 3, row = row)
+    button_exit.grid(column = 4,row = row, columnspan=audioChans-1)
     window.mainloop()

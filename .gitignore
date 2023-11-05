@@ -160,3 +160,8 @@ Test Files/test.wav
 Test Files/2023-01-07 13-06-11-cut.edl
 Test Files/2023-01-07 13-06-11.mkv
 *.pt
+*.edl
+*.wav
+Skyblock.json
+Skyblock
+default_profile.json
