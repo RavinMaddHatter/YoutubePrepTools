@@ -1,0 +1,5 @@
+numpy
+pandas
+pyperclip
+scipy
+whisper
