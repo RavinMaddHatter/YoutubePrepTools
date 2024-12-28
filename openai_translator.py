@@ -35,7 +35,7 @@ class Translator:
                 end_time = str(0) + str(timedelta(seconds=int(segment['end']))) + ',000'
                 text = segment['text']
                 segment_id = segment['id'] + 1
-                segment = f"{segment_id}\n{start_time} --> {end_time}\n{text[1:] if text[0] is ' ' else text}\n\n"
+                segment = f"{segment_id}\n{start_time} --> {end_time}\n{text[1:] if text[0] == ' ' else text}\n\n"
 
                 srt_filename = name + ".srt"
                 with open(srt_filename, 'a', encoding='utf-8') as srtFile:

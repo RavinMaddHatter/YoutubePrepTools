@@ -69,8 +69,8 @@ def load_file(file_name="default_profile.json"):
     if "min_silent" not in data.keys():
         data["min_silent"] = 0.1
 
-    update_save(data)
-
+    #update_save(data)
+    print(data)
     return data
 
 
@@ -255,8 +255,9 @@ if __name__ == "__main__":
                                                                "*.json*"),
                                                               ("all files",
                                                                "*.*")))
-        load_file(settings_file)
+        data=load_file(settings_file)
         for i in range(audioChans):
+            print(data["slider_defaults"][i])
             sliders[i].set(data["slider_defaults"][i])
             slider_chks[i].set(data["sliders_enabled"][i])
         st.delete('1.0', END)
@@ -266,7 +267,7 @@ if __name__ == "__main__":
         lead_out.set(data["out_space"])
         clip_dur.set(data["min_clip"])
         min_silent_dur_var.set(data["min_silent"])
-
+        print("done")
 
     def save_as():
         file_name = filedialog.asksaveasfile(title="Set Profile File Name",

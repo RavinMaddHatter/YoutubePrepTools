@@ -25,6 +25,7 @@ class Clipcutter:
         self.enabled_clips = [True, False, False, False]  # set by function
         self.lead_in = 0.1  # seconds set by function
         self.lead_out = 0.1  # seconds set by function
+        self.total_lead = 0.2
         self.min_clip_dur = 0.5  # seconds set by function
         self.min_silent_dur = 0.1  # seconds set by function
         self.video_file_name = None  # set by function
@@ -48,9 +49,11 @@ class Clipcutter:
 
     def set_lead_in(self, lead_in):
         self.lead_in = lead_in
+        self.total_lead =self.lead_out+lead_in
 
     def set_lead_out(self, lead_out):
-        self.lead_in = lead_out
+        self.lead_out = lead_out
+        self.total_lead = self.lead_in + lead_out
 
     def set_min_clip_dur(self, min_clip_dur):
         self.min_clip_dur = min_clip_dur
@@ -102,7 +105,7 @@ class Clipcutter:
             cmd = 'ffmpeg -i "{}" -bitexact -map 0:{} -acodec pcm_s16le -ar 22050 -ac {} {}'.format(
                 self.video_file_name,
                 chan,
-                self.metadata.Audio[chan - 1].channels,
+                self.metadata.audio[chan - 1].channels,
                 audio_path)
 
             startupinfo = None
@@ -113,12 +116,12 @@ class Clipcutter:
         data = None
         where_loud = None
         active_thresh = []
-        for i in range(min(len(self.enabled_clips), len(self.metadata.Audio))):
+        for i in range(min(len(self.enabled_clips), len(self.metadata.audio))):
             if self.enabled_clips[i]:
                 active_thresh.append(-self.silent_thresh_list[i])
 
         silent_tresh = max(active_thresh)
-        for i in range(min(len(self.enabled_clips), len(self.metadata.Audio))):
+        for i in range(min(len(self.enabled_clips), len(self.metadata.audio))):
 
             if self.enabled_clips[i]:
                 print("merging track {}".format(i + 1))
@@ -142,7 +145,7 @@ class Clipcutter:
                     silent_tresh / 10)
 
         # set up a scanner for 10% of the average of the in vs the out durration
-        scan_interval = (self.lead_in + self.lead_out) / 20
+        scan_interval = (self.total_lead ) / 20
 
         # set window for scanning
         window = int(scan_interval * samplerate)
@@ -205,7 +208,7 @@ class Clipcutter:
 
         # calculate remaining clip durations
         rising_times = index_of_rising_edges / samplerate - self.lead_in
-        falling_times = index_of_falling_edges / samplerate - self.lead_out
+        falling_times = index_of_falling_edges / samplerate + self.lead_out
 
         # corrects for the negative time that would show up if the video was loud at start.
         if rising_times[0] < 0:
