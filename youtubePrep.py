@@ -4,7 +4,7 @@ t1 = time.time()
 from time import sleep
 from threading import Thread
 import cutter
-import openai_translator as Translator
+import translator_2 as Translator
 from queue import Queue
 from csv import DictReader
 from pyperclip import copy
@@ -15,8 +15,8 @@ from os.path import exists, split, join, getmtime
 from tkinter.scrolledtext import ScrolledText
 from pathlib import Path
 from glob import glob
+import tiktoken
 
-print(time.time() - t1)
 data = None
 BoilerplateInfo = None
 slider_defaults = None
@@ -70,7 +70,6 @@ def load_file(file_name="default_profile.json"):
         data["min_silent"] = 0.1
 
     #update_save(data)
-    print(data)
     return data
 
 
@@ -154,18 +153,17 @@ if __name__ == "__main__":
                                                           "*.WAV *.MP4 *.MOV *.AVI *.Y4M *.MKV"),
                                                          ("all files",
                                                           "*.*")))
-        try:
-            transcribe_queue = Queue()
-            print("queue sent")
-            popup = Thread(target=progress_bar, args=("Transcribing Video", transcribe_queue,))
-            popup.start()
+        transcribe_queue = Queue()
+        print("queue sent")
+        popup = Thread(target=progress_bar, args=("Transcribing Video", transcribe_queue,))
+        popup.start()
 
-            trans = Thread(target=transcribe_process, args=(transcribe_queue, filename,))
-            trans.start()
-            print("transcribe finished")
-        except Exception as e:
-            print("failed translation")
-            print(e)
+        trans = Thread(target=transcribe_process, args=(transcribe_queue, filename,))
+        trans.start()
+        print("transcribe finished")
+##        except Exception as e:
+##            print("failed translation")
+##            print(e)
 
 
     def do_settings(cc):
@@ -267,7 +265,6 @@ if __name__ == "__main__":
         lead_out.set(data["out_space"])
         clip_dur.set(data["min_clip"])
         min_silent_dur_var.set(data["min_silent"])
-        print("done")
 
     def save_as():
         file_name = filedialog.asksaveasfile(title="Set Profile File Name",
