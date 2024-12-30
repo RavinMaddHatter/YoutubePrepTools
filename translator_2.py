@@ -1,18 +1,12 @@
 from faster_whisper import WhisperModel
 from datetime import timedelta
 from os.path import splitext
-import torch
 _MODELS={"base":"NA"}
 
 class Translator:
     def __init__(self, transcribe_queue, model_size):
         self.status_queue = transcribe_queue
         self.status_queue.put({"percent": 10, "state": "Model Found"})
-        #if torch.cuda.is_available():
-        #    print("using gpu to speed things up")
-        #    self.model=WhisperModel(model_size,device="cuda", compute_type="float16")
-        #else:
-        #    print("using cpu as cuda not found")
         self.model=WhisperModel(model_size,device="cpu", compute_type="int8")
     def audio_to_text(self, fileName):
         print("starting translation")
