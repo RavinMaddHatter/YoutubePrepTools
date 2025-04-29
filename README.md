@@ -1,18 +1,24 @@
+[[TOC]]
+
 # Youtube Video Publishing Tools
-This is a set of tools I put together to make youtube video publishing much easier. The tools help cut silence from video clips, transcribe an audio file to a Text file for youtube subtitles, and quickly and efficiently make chapters for your description with boiler plate social media links.
+This is a set of tools I put together to make youtube video publishing much easier. The tools help cut silence from video clips, transcribe an audio file to a Text file for youtube subtitles, and quickly and efficiently make chapters for your description with boiler plate social media links. Currently only supports MKV files and has been confirmed to work on Davinci Resolve video editing software. 
 
 This project is Free and Open source, and is powered by other opensource projects. 
 ## Introduction
 [![How this works](http://img.youtube.com/vi/npFae43ULP0/0.jpg)](https://youtu.be/npFae43ULP0 "Faster Youtube Video Publishing/Editing Tools using OpenAI and Davinci")
 
-## installation
-To install this took you will first need to install FFMPEG. FFMEG is an opensource tool that allows for the minipulation of Video and Audio files. FFMPEG needs to be added to path, how you do that is explained in this video.
+## Prerequisites
+To install this took you will first need to install FFMPEG and FFPROBE. FFMEG and FFPROBE are opensource tools that allow for the minipulation of Video and Audio files. FFMPEG and FFPROBE needs to be added to PATCH: variable, how you do that is explained in this video. Installation from Winget or Chocolatey will not suffice on Windows.
+
 [![How to install FFMPEG to path](http://img.youtube.com/vi/r1AtmY-RMyQ/0.jpg)](https://www.youtube.com/watch?v=r1AtmY-RMyQ "Video Title")
+
 Download the file from the latest release
+
 [latest release](https://github.com/RavinMaddHatter/YoutubePrepTools/releases/latest)
 
-## Instructions
+## Instructions 
 This section is a basic walk through of the features
+
 ### Video File Processing 
 To begin you will need to know the settings that drive the program. First the audio levels for what defines silent and what defines loud are cut off per channel using the sliders.
 
@@ -30,7 +36,7 @@ Min Clip Length is the length of time a "loud section" must be to be kept. Min S
 
 ![Clip lengths](https://github.com/RavinMaddHatter/YoutubePrepTools/blob/main/Docs/Clip%20lenghts%20highlighted.png?raw=true)
 
-Cut Clip applies the settings to a single video file and exports and EDL matching the video file name. A file browser will open for this. Cut Folder applies the cut process to all videos in the folder and creates 1 timeline with the foldername.
+Cut Clip applies the settings to a single video file and exports and EDL matching the video file name. A file browser will open for this. Cut Folder applies the cut process to all videos in the folder and creates 1 timeline with the foldername. **Video will be processed as soon as it is selected and window is closed**
 
 ![execute cut process](https://github.com/RavinMaddHatter/YoutubePrepTools/blob/main/Docs/cut%20clip%20and%20cut%20folder.png?raw=true)
 
