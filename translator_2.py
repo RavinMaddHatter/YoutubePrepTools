@@ -37,7 +37,7 @@ class Translator:
                     
                     
         self.status_queue.put({"percent": 95, "state": "writing text file"})
-        with open(name + ".txt", "w+") as text_file:
+        with open(name + ".txt", "w+", encoding='utf-8') as text_file:
             text_file.write(text_results)
         self.status_queue.put({"percent": 100, "state": "done"})
 if __name__ == "__main__":
